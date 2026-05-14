@@ -1,6 +1,6 @@
-# automacao-bbb
+# automacao-espiritualidade
 
-Pipeline automatizado de producao de videos de reality show (BBB, La Casa de los Famosos, La Casa de los Campeones, etc). Recebe roteiros via webhook HTTP, gera audio narrado com Talkify TTS, mapeia imagens de participantes baseado nos nomes ditos na narracao, e renderiza o video final com legendas karaoke via FFmpeg NVENC.
+Pipeline automatizado de produção de vídeos com narração TTS para nichos de espiritualidade (Carl Jung, esoterismo, filosofia mística, etc). Recebe roteiros via webhook HTTP, gera áudio narrado com Talkify TTS em batch (1 crédito por N roteiros), monta um slideshow de backgrounds com PNG overlay animado (efeito pêndulo senoidal) e renderiza o vídeo final com legendas karaoke via FFmpeg.
 
 ## O que ele faz, em linha geral
 
@@ -8,71 +8,88 @@ Pipeline automatizado de producao de videos de reality show (BBB, La Casa de los
 Roteiro (texto)
    |
    v
-[Talkify TTS]  -->  audio.mp3 + SRT word-level
+[Talkify TTS Batch]  -->  audio.mp3 + SRT word-level (1 crédito por até ~50 roteiros)
    |
    v
-[Image Map]    -->  "quando o audio diz 'Jordana', mostra foto da Jordana"
+[Layout]             -->  N segmentos de background embaralhados (8s cada)
    |
    v
-[FFmpeg]       -->  video.mp4 com Ken Burns + legendas amarelas karaoke
+[FFmpeg]             -->  vídeo final 9:16 com PNG avatar + pêndulo + legendas karaoke
 ```
 
 ## Features principais
 
-- **Webhook HTTP** recebe roteiros prontos do SaaS Syntax (ou de qualquer sistema via `curl`)
-- **Batch Talkify** — agrupa ate 10 roteiros num unico job TTS, reduzindo gasto de creditos em 10x
-- **Canais dinamicos** — cada canal tem sua propria pasta com `participants.json` + `images/`, sem editar codigo
-- **Upscale AI** — pre-processa imagens de baixa resolucao com Real-ESRGAN antes de usar no video
-- **Checkpoint** — se o pipeline quebra no meio, retoma de onde parou sem refazer etapas ja completas
-- **Render NVENC** — usa GPU NVIDIA pra renderizar videos em tempo real
+- **Webhook HTTP** recebe roteiros prontos do Syntax Desktop (ou de qualquer sistema via `curl`)
+- **Batch Talkify** — agrupa até 50 roteiros num único job TTS, reduzindo gasto de créditos drasticamente
+- **PNG overlay animado** — avatar/figura central com efeito pêndulo senoidal (amplitude e frequência configuráveis)
+- **Background slideshow** — backgrounds aleatorizados em segmentos curtos, vídeos ou imagens
+- **Legendas karaoke** — destaque palavra por palavra em ASS (cores configuráveis no `.env`)
+- **Checkpoint** — se o pipeline quebra no meio, retoma de onde parou sem refazer etapas já completas
+- **Render NVENC** — usa GPU NVIDIA pra renderizar vídeos em tempo real (fallback CPU automático)
 
-## Como comecar
+## Como começar
 
 1. Leia [docs/INSTALL.md](docs/INSTALL.md) e siga o passo a passo
-2. Depois, leia [docs/CANAIS.md](docs/CANAIS.md) pra aprender a criar canais novos
-3. Pra integracao com o Syntax ou envio manual via curl, veja [docs/WEBHOOK.md](docs/WEBHOOK.md)
-4. Problemas? [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)
+2. Configure `.env` a partir de `.env.example` — preencha `TALKIFY_API_KEY` no mínimo
+3. Adicione seus backgrounds em uma pasta qualquer (ex: `D:\meus-backgrounds\`) — pode ser MP4 ou PNG
+4. Adicione um PNG de avatar (transparente) em uma pasta qualquer (ex: `D:\meus-avatares\`)
+5. Pra integração com o Syntax ou envio manual via curl, veja [docs/WEBHOOK.md](docs/WEBHOOK.md)
 
 ## Estrutura de pastas
 
 ```
-automacao-bbb/
+automacao-espiritualidade/
 ├── README.md              Este arquivo
-├── docs/                  Documentacao completa
-├── src/                   Codigo fonte (pipeline + utils)
-├── scripts/               Scripts utilitarios (upscale, check, etc)
+├── docs/                  Documentação completa
+├── src/                   Código fonte
+│   ├── webhook-server.js  HTTP server (porta 5581 default)
+│   ├── index.js           runSingle() — orquestra os 4 stages
+│   ├── config.js          Defaults + validação de env
+│   ├── pipeline/
+│   │   ├── 02-tts.js          TTS single-mode (fallback)
+│   │   ├── 02b-tts-batch.js   TTS batch (1 request → N áudios)
+│   │   ├── 03-layout.js       Monta segmentos de background
+│   │   └── 04-video.js        FFmpeg render com pêndulo + legendas
+│   └── utils/
+│       ├── batch-scheduler.js  Fila + agrupamento + flush
+│       ├── batch-splitter.js   Sentinelas + super-script + split SRT
+│       ├── srt-parser.js       Parse/slice/serialize SRT
+│       ├── ass-generator.js    Karaoke ASS gen
+│       ├── ffmpeg-helpers.js   slugify, ensureDirs, hasNvenc
+│       ├── state.js            Checkpoint JSON por job
+│       └── ...
+├── scripts/               Scripts utilitários (check, convert assets)
 ├── assets/
-│   ├── images/
-│   │   ├── bbb/           Imagens dos participantes do BBB
-│   │   └── lcf/           Imagens dos participantes do La Casa de los Famosos
-│   ├── backgrounds/       Background padrao (fallback neutro)
-│   └── fonts/             Fontes pras legendas (se precisar)
-├── tools/
-│   └── realesrgan/        Binario do Real-ESRGAN (upscale AI, GPU Vulkan)
+│   └── png/               PNGs de exemplo (avatares pré-bundlados)
 ├── package.json
-└── .env.example           Template de configuracao
+└── .env.example           Template de configuração
 ```
 
 ## Requisitos
 
-- **Windows** (testado no 10/11)
+- **Windows** (testado no 10/11), Linux ou macOS
 - **Node.js** 20 ou superior
-- **FFmpeg** no PATH (com suporte a NVENC idealmente)
-- **GPU NVIDIA** com suporte a Vulkan (pro Real-ESRGAN) e NVENC (pro render)
-- **Chaves de API**: Talkify (obrigatoria), Supabase (opcional, so se usar Syntax). WenOX so eh necessaria pro modo CLI legacy.
-- **~10 GB** de espaco livre em disco pra temp + output
+- **FFmpeg + ffprobe** no PATH (com suporte a NVENC idealmente)
+- **GPU NVIDIA** com NVENC (opcional — fallback CPU funciona)
+- **Chaves de API**: Talkify (obrigatória), Supabase (opcional, só se usar Syntax)
+- **~10 GB** de espaço livre em disco pra temp + output
 
-## Comandos uteis (npm scripts)
+## Comandos úteis (npm scripts)
 
 ```bash
 npm run check           # valida setup antes do primeiro uso
-npm run webhook         # sobe o webhook HTTP na porta 5580
-npm run upscale -- <path>   # roda upscale AI em uma pasta de imagens
-npm start "Titulo"      # roda o pipeline completo pra 1 video via CLI (modo legacy)
+npm run webhook         # sobe o webhook HTTP (porta WEBHOOK_PORT do .env, default 5580)
+npm run convert         # converte backgrounds .mov/.mp4 grandes em formato otimizado
 ```
 
 Pra mais detalhes de cada comando, veja `docs/`.
 
-## Licenca e uso
+## Integração com Syntax Desktop
 
-Projeto pessoal pra producao de conteudo YouTube. Nao distribua publicamente sem autorizacao.
+Este pipeline foi pensado pra rodar como **2ª automação** dentro do Syntax Desktop (junto com a BBB de realities). Quando empacotado no Syntax, fica em `%APPDATA%\Syntax Desktop\automations\espiritualidade\` e é gerenciado pelo lifecycle do Syntax (start/stop/log via UI).
+
+Porta default no contexto do Syntax: **5581** (pra não colidir com a BBB que roda em 5580).
+
+## Licença e uso
+
+Projeto pessoal pra produção de conteúdo. Não distribuir publicamente sem autorização.
