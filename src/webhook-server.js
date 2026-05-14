@@ -67,10 +67,22 @@ function prepararProjeto(data) {
     data.voice_effects && typeof data.voice_effects === 'object' ? data.voice_effects : null;
 
   // Layout do video: PNG overlay e pasta de backgrounds
-  // Prioridade: payload > DEFAULT_* do .env
-  const pngPath        = data.png_path        ? String(data.png_path)        : DEFAULT_PNG_PATH || null;
-  const pngDir         = data.png_dir         ? String(data.png_dir)         : DEFAULT_PNG_DIR  || null;
-  const backgroundsDir = data.backgrounds_dir ? String(data.backgrounds_dir) : DEFAULT_BACKGROUNDS_DIR || null;
+  // Prioridade: payload > state preservado (resume) > DEFAULT_* do .env
+  //
+  // O fallback pro state é crítico no Retomar: o `Automations.tsx` re-envia
+  // o webhook com `resume: true` mas o `buildResumeExtras` antigo não trazia
+  // png_path/backgrounds_dir no payload — sem o fallback aqui, valores caíam
+  // pra null e o pipeline falhava com "png_path obrigatorio". Defensivo.
+  const previousState = loadState(titulo);
+  const pngPath = data.png_path
+    ? String(data.png_path)
+    : (previousState.webhookPngPath || DEFAULT_PNG_PATH || null);
+  const pngDir = data.png_dir
+    ? String(data.png_dir)
+    : (previousState.webhookPngDir || DEFAULT_PNG_DIR || null);
+  const backgroundsDir = data.backgrounds_dir
+    ? String(data.backgrounds_dir)
+    : (previousState.webhookBackgroundsDir || DEFAULT_BACKGROUNDS_DIR || null);
 
   const canal = inferirCanal(idioma);
 
