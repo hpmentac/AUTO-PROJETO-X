@@ -1,0 +1,14 @@
+{
+  "name": "automacao-video",
+  "version": "2.0.0",
+  "type": "module",
+  "description": "Pipeline automatizado: TTS + background slideshow + PNG overlay com pendulo + legendas karaoke",
+  "scripts": {
+    "check": "node scripts/check-setup.js",
+    "webhook": "node src/webhook-server.js",
+    "convert": "node scripts/convert-assets.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.0"
+  }
+}
