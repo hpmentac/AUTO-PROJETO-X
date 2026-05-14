@@ -110,9 +110,13 @@ export async function buildVideo({
   // 5. Legendas karaoke ASS
 
   // [1] Scale + crop cada BG para W x H
+  // setsar=1 normaliza pixel aspect ratio. Sem isso, vídeos source com SAR
+  // diferente (1:1, 72:72, 300:300) misturados causam erro no concat:
+  //   "Input link parameters do not match the corresponding output link"
+  // Defensivo: força tudo pra SAR uniforme antes do concat.
   const bgFilters = backgroundSegments.map((_, i) =>
     `[${i}:v]scale=${W}:${H}:force_original_aspect_ratio=increase,` +
-    `crop=${W}:${H},fps=${FPS},setpts=PTS-STARTPTS[v${i}]`
+    `crop=${W}:${H},setsar=1,fps=${FPS},setpts=PTS-STARTPTS[v${i}]`
   ).join(';');
 
   // [2] Concat (ou alias direto se n=1 — concat com n=1 e fragil em alguns builds)
@@ -128,8 +132,13 @@ export async function buildVideo({
   //   Por que n/FPS em vez de t?
   //   Com -loop 1, PTS=0 em todos os frames → t=0 → sin(0)=0 → sem movimento.
   //   Usando n (frame number) / FPS obtemos tempo crescente correto.
+  // setsar=1 + format=rgba protegem contra "PNG" que na verdade é JPEG ou
+  // arquivo com SAR esquisito (ex: screenshot 1376x768 SAR 300:300). Sem isso,
+  // user que aponta o campo PNG do canal pra um arquivo qualquer quebra o
+  // filter graph inteiro com erro "Input link parameters do not match".
+  // format=rgba garante 4 canais (transparência) mesmo se vier JPEG opaco.
   const pendulumFilter =
-    `[${pngIdx}:v]scale=-2:${pngH}[png_sized];` +
+    `[${pngIdx}:v]setsar=1,format=rgba,scale=-2:${pngH}[png_sized];` +
     `[png_sized]crop=${W}:${pngH}:0:0[png_cropped];` +
     `[png_cropped]rotate=angle='${A}*sin(2*PI*${F}*(n/${FPS}))':c=none` +
     `:ow=iw+100:oh=ih+100[png_rot]`;
